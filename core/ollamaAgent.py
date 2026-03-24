@@ -24,7 +24,7 @@ class OllamaAgent:
         }
         try:
             logger.debug(f"Chamando Ollama API para o agente {self.name}")
-            response = requests.post(self.base_url, json=payload, timeout=30)
+            response = requests.post(self.base_url, json=payload, timeout=300)
             response.raise_for_status()
             content = response.json()['message']['content']
             logger.info(f"Resposta recebida com sucesso para o agente {self.name}")
