@@ -57,3 +57,6 @@ target/
 # --- TESTES ---
 coverage/
 .nyc_output/
+
+# --- DATABASE ---
+vector_db/

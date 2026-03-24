@@ -1,4 +1,5 @@
 from core.logger_config import setup_logger
+import requests
 
 logger = setup_logger("OllamaAgent")
 

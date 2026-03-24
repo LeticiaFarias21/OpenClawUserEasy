@@ -1,28 +1,90 @@
 import os
-from dotenv import load_dotenv
 import requests
-import json
+from dotenv import load_dotenv
 from core.logger_config import setup_logger
 from core.ollamaAgent import OllamaAgent
-# Carrega as variáveis do arquivo .env
+from core.agent_factory import create_openclaw_agent
+from skills.buscar_jurisprudencia import buscar_contexto_juridico
+
+# 1. Configuração Inicial e Logs
 load_dotenv()
 logger = setup_logger("Orchestrator")
-# Agora você acessa assim:
-primary_model = os.getenv("OPENCLAW_PRIMARY_MODEL")
-ollama_url = os.getenv("OLLAMA_HOST")
 
-print(f"🤖 Sistema iniciado com o modelo: {primary_model}")
+def preparar_agentes():
+    """Garante que as identidades OpenClaw (.md) estejam criadas e atualizadas."""
+    logger.info("Verificando identidades dos agentes no diretório 'agentes/'...")
+    
+    # Parâmetros para o Agente de Triagem
+    triagem_params = {
+        "name": "Agente_Triagem",
+        "role": "Especialista em Triagem Processual do TJ",
+        "goal": "Analisar a petição inicial e classificar o tipo de ação.",
+        "workflow_steps": [
+            "Receber o texto do PDF.",
+            "Identificar: Tipo de Ação, Valor da Causa e Partes.",
+            "Enviar resumo para o Agente_Analista."
+        ],
+        "model": os.getenv("OPENCLAW_TRIAGE_MODEL")
+    }
 
+    # Parâmetros para o Agente Analista
+    analista_params = {
+        "name": "Agente_Analista",
+        "role": "Pesquisador jurídico focado em precedentes.",
+        "goal": "Enriquecer a análise com jurisprudência real do TJ/2026.",
+        "workflow_steps": [
+            "Receber os dados da triagem.",
+            "Utilizar a Skill 'buscar_jurisprudencia.py' para encontrar casos similares.",
+            "Comparar a petição com os resultados encontrados pelo Nomic Embed.",
+            "Sugerir minuta baseada em factos e precedentes reais."
+        ],
+        "model": os.getenv("OPENCLAW_PRIMARY_MODEL")
+    }
+
+    # Criando os arquivos .md via Factory
+    os.makedirs("agentes", exist_ok=True)
+    create_openclaw_agent(**triagem_params)
+    create_openclaw_agent(**analista_params)
 
 def executar_fluxo_juridico(peticao_inicial):
-    # Uso dos modelos otimizados para M1 8GB
-    agente_triagem = OllamaAgent("Agente_Triagem", "Especialista em Triagem", model="llama3.2:3b")
-    agente_analista = OllamaAgent("Agente_Jurisprudencia", "Analista", model="qwen2.5:3b")
+    """Executa o fluxo utilizando as identidades gerenciadas pelo OpenClaw."""
+    
+    # Instanciando Agentes (Eles agora usam os modelos definidos nos arquivos .md gerados)
+    agente_triagem = OllamaAgent(
+        "Agente_Triagem", 
+        "Especialista em Triagem", 
+        model=os.getenv("OPENCLAW_PRIMARY_MODEL")
+    )
+    agente_analista = OllamaAgent(
+        "Agente_Analista", 
+        "Analista de Jurisprudência", 
+        model=os.getenv("OPENCLAW_PRIMARY_MODEL")
+    )
 
-    logger.info("Iniciando fluxo jurídico multi-agente")
+    logger.info("🚀 Iniciando fluxo jurídico multi-agente")
     
-    resultado_triagem = agente_triagem.receive_message(peticao_inicial, "Protocolo")
-    analise_final = agente_analista.receive_message(resultado_triagem, "Agente_Triagem")
+    # Passo 1: Triagem básica
+    resumo_triagem = agente_triagem.receive_message(peticao_inicial, "Protocolo")
+
+    # Passo INTERMEDIÁRIO: O uso do Nomic Embed para RAG
+    logger.info("🔎 Consultando Base de Conhecimento via Nomic Embed...")
+    jurisprudencia_relevante = buscar_contexto_juridico(resumo_triagem)
+
+    # Passo 2: O Analista recebe o resumo E a jurisprudência real
+    prompt_enriquecido = f"DADOS DA PETIÇÃO: {resumo_triagem}\n\nJURISPRUDÊNCIA ENCONTRADA: {jurisprudencia_relevante}"
     
-    logger.info("Fluxo finalizado com sucesso")
+    analise_final = agente_analista.receive_message(prompt_enriquecido, "Agente_Triagem + NomicSearch")
+    
     return analise_final
+
+if __name__ == "__main__":
+    # Garantir que os agentes (.md) existam antes de rodar
+    preparar_agentes()
+    
+    exemplo_peticao = """
+    Ação de Indenização por Danos Morais contra a Cia Aérea X por atraso de 12 horas 
+    em voo internacional. O autor pleiteia R$ 15.000,00.
+    """
+    
+    resultado = executar_fluxo_juridico(exemplo_peticao)
+    print(f"\n--- PARECER FINAL DOS AGENTES ---\n{resultado}")
