@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from core.logger_config import setup_logger
 from core.ollamaAgent import OllamaAgent
 from core.agent_factory import create_openclaw_agent
-from skills.buscar_jurisprudencia import buscar_contexto_juridico
+from skills.buscar_jurisprudencia import buscar_jurisprudencia
 
 # 1. Configuração Inicial e Logs
 load_dotenv()
@@ -52,7 +52,7 @@ def executar_fluxo_juridico(peticao_inicial):
     # Instanciando Agentes (Eles agora usam os modelos definidos nos arquivos .md gerados)
     agente_triagem = OllamaAgent(
         "Agente_Triagem", 
-        "Especialista em Triagem", 
+        "Especialista em Triagem, para infomações necessárias para a petição ocorrer", 
         model=os.getenv("OPENCLAW_PRIMARY_MODEL")
     )
     agente_analista = OllamaAgent(
@@ -68,7 +68,7 @@ def executar_fluxo_juridico(peticao_inicial):
 
     # Passo INTERMEDIÁRIO: O uso do Nomic Embed para RAG
     logger.info("🔎 Consultando Base de Conhecimento via Nomic Embed...")
-    jurisprudencia_relevante = buscar_contexto_juridico(resumo_triagem)
+    jurisprudencia_relevante = buscar_jurisprudencia(resumo_triagem)
 
     # Passo 2: O Analista recebe o resumo E a jurisprudência real
     prompt_enriquecido = f"DADOS DA PETIÇÃO: {resumo_triagem}\n\nJURISPRUDÊNCIA ENCONTRADA: {jurisprudencia_relevante}"
@@ -81,10 +81,18 @@ if __name__ == "__main__":
     # Garantir que os agentes (.md) existam antes de rodar
     preparar_agentes()
     
-    exemplo_peticao = """
-    Ação de Indenização por Danos Morais contra a Cia Aérea X por atraso de 12 horas 
-    em voo internacional. O autor pleiteia R$ 15.000,00.
-    """
-    
-    resultado = executar_fluxo_juridico(exemplo_peticao)
-    print(f"\n--- PARECER FINAL DOS AGENTES ---\n{resultado}")
+    #exemplo_peticao = """
+    #Ação de Indenização por Danos Morais contra a Cia Aérea X por atraso de 12 horas 
+    #em voo internacional. O autor pleiteia R$ 15.000,00.
+    #"""
+    #
+    #resultado = executar_fluxo_juridico(exemplo_peticao)
+    #print(f"\n--- PARECER FINAL DOS AGENTES ---\n{resultado}")
+    # Defina o caminho para um PDF real na sua pasta de dados
+    caminho_pdf = "./data/jurisprudencia/peticao/petição.pdf"
+
+    if os.path.exists(caminho_pdf):
+        resultado = executar_fluxo_juridico(caminho_pdf)
+        print(f"\n--- PARECER DO SISTEMA ---\n{resultado}")
+    else:
+        logger.error(f"Ficheiro não encontrado: {caminho_pdf}")
