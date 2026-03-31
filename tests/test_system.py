@@ -5,7 +5,7 @@ from core.ollamaAgent import OllamaAgent
 class TestSistemaJuridico(unittest.TestCase):
 
     def setUp(self):
-        self.agent = OllamaAgent("TestAgent", "Analista", model="qwen3.5:0.8b")
+        self.agent = OllamaAgent("TestAgent", "Analista", model="qwen3.5:cloud")
 
     @patch('requests.post')
     def test_ask_ollama_success(self, mock_post):
@@ -31,7 +31,7 @@ class TestSistemaJuridico(unittest.TestCase):
 
     def test_agent_initialization(self):
         self.assertEqual(self.agent.name, "TestAgent")
-        self.assertEqual(self.agent.model, "qwen3.5:0.8b")
+        self.assertEqual(self.agent.model, "qwen3.5:cloud")
 
 if __name__ == '__main__':
     unittest.main()
